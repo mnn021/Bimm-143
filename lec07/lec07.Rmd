@@ -1,0 +1,273 @@
+---
+title: "lec07 R Functions and Packages"
+author: "Michael Nguyen"
+date: "10/22/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R functions, revisited
+
+Source my functions from last day
+
+# RECAP
+
+Control + Opt + I = Bring down R
+```{r}
+source("http://tinyurl.com/rescale-R")
+```
+
+
+take any numeric value and rescale it. 
+```{r}
+rescale(1:10)
+```
+
+```{r}
+rescale( c(1, 10, 5, NA, 6))
+```
+
+na.rm = TRUE therfore we have the NA.
+
+
+Errors:
+rescale2(c(1:10, "barry"))
+*Error: Input x should be numeric*
+
+rescale(c(1:10, "barry"))
+*Error in x - rng[1] : non-numeric argument to binary operator*
+
+
+
+##Write new function for NA
+Write a function to find where there are NA elements in two input vectors. 
+1. Make some simple inputs where I **know** the answer
+```{r}
+x <- c(1, 2, NA, 3, NA)
+y <- c(NA, 3, NA, 3, 4)
+```
+
+
+Looked online and found the **is.na()**
+```{r}
+is.na(x)
+```
+
+and the **which** function tells me the elements/values are true
+```{r}
+which(is.na(x))
+```
+
+```{r}
+is.na(y)
+```
+
+```{r}
+which(is.na(y))
+```
+
+
+```{r}
+is.na(x)
+is.na(y)
+```
+
+
+The  **AND (&)** function requries two inputs that are TRUE to give a TRUE output
+```{r}
+is.na(x) & is.na(y)
+```
+
+
+Taking the **sum()** of TRUE FALSE vector will tell me how many TRUE elements I have
+THIS IS MY WORKING SNIPPET!!
+```{r}
+sum(is.na(x) & is.na(y))
+```
+
+ex/of sum function
+```{r}
+sum( c(TRUE, TRUE, FALSE, TRUE))
+```
+
+
+##So let's turn it into a function (both_na)
+### function_name <- **function**(input arguments) {body}
+```{r}
+both_na <- function (x,y) {
+  sum(is.na(x) & is.na(y))
+}
+```
+
+```{r}
+both_na(x, y)
+```
+
+```{r}
+x <- c(NA, NA, NA)
+y1 <- c( 1, NA, NA)
+y2 <- c( 1, NA, NA, NA)
+```
+
+
+```{r}
+both_na(x, y1)
+```
+2 because two matching NAs. 
+
+```{r}
+both_na(x, y2)
+```
+
+
+
+```{r}
+x2 <- c(NA, NA)
+```
+
+
+Test
+```{r}
+both_na(x2, y2)
+```
+
+
+
+RECYCLING VARIABLES/VALUES
+example:
+```{r}
+plot(1:10, col=c("red", "blue", "green"))
+```
+
+```{r}
+x <- c(NA, NA, NA)
+x2 <- c(NA, NA)
+y1 <- c( 1, NA, NA)
+y2 <- c( 1, NA, NA, NA)
+y3 <- c(1, NA, NA, NA, NA, NA, NA)
+both_na(x, y3)
+```
+
+```{r}
+x3 <- c(1, NA, NA)
+y3 <- c(1, NA, NA, NA, NA, NA, NA)
+both_na(x3, y3)
+```
+
+Viewing length
+```{r}
+length(x)
+length(y3)
+```
+
+
+
+
+Adding stop() to new funciton **both_na2**. Add a check for when inputs x, y are *not* same length
+```{r}
+both_na2 <- function (x,y) {
+  if(length(x) != length(y)) {
+    stop("Inputs x and y should be the same length!")
+  }
+  sum(is.na(x) & is.na(y))
+}
+```
+
+Error in "both_na2(x, y3)" : **Inputs x and y should be the same length!**
+
+
+
+#Lab 7
+## Write a function **grade** to determine an overall grade from a vector of student homework assignment scores dropping the lowest single slignment score. 
+
+```{r}
+#Student 1
+s1 <- c(100, 100, 100, 100, 100, 100, 100, 90)
+which.min(s1)
+s1[which.min(s1)]
+
+#THIS
+s1[-which.min(s1)]
+#Student 2
+s2 <- c(100, NA, 90, 90, 90, 90, 97, 80)
+which.min(s2)
+s2[which.min(s2)]
+```
+
+
+Function, round 1
+```{r}
+grade <- function(s) {
+  mean(s[-which.min(s)], na.rm = TRUE)
+}
+```
+
+```{r}
+grade(s1)
+```
+
+```{r}
+grade(s2)
+```
+
+Is there an NA in the student's grade?
+```{r}
+is.na(s2)
+any(is.na(s2))
+any(is.na(s1))
+```
+
+
+```{r}
+grade <- function(s) {
+  if(any(is.na(s))) {
+    warning("Student is missing a homework")
+  }
+  mean(s[-which.min(s)], na.rm = TRUE)
+}
+```
+
+```{r}
+grade(s1)
+```
+
+
+```{r}
+grade(s2)
+```
+
+
+if you wanna really take out NA (if you only did one, and rest are NAs)
+```{r}
+grade <- function(s) {
+  if(any(is.na(s))) {
+    warning("Student is missing a homework")
+  }
+  sum(s[-which.min(s)], na.rm = TRUE)/(length(s) - 1)
+}
+```
+
+```{r}
+grade(s2)
+```
+
+```{r}
+s3 <- c(100, NA, NA, NA, NA)
+grade(s3)
+```
+
+
+
+
+```{r}
+url <- "https://tinyurl.com/gradeinput"
+hw <- read.csv(url, row.names=1)
+```
+
+```{r}
+apply(hw, 1, grade)
+```
+
