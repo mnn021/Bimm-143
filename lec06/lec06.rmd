@@ -2,7 +2,7 @@
 title: "Lecture06 R Functions"
 author: "Michael Nguyen"
 date: "10/17/2019"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
