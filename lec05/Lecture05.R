@@ -1,3 +1,11 @@
+#' ---
+#' title: "lec05: Data exploration and visualization"
+#' author: "Michael Nguyen"
+#' date: "October 31, 2019"
+#' output: github_document
+#' ---
+
+
 # Lecture 5: Data visualization 
 x <- rnorm(1000)
 
