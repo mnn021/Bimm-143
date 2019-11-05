@@ -1,0 +1,97 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The PDB Database for biomolecular structure data
+
+### 1.1
+> Q1: Download a CSV file from the PDB site (accessible from “Analyze” -> “PDB Statistics” > “by Experimental Method and Molecular Type”. Move this CSV file into your RStudio project and determine the percentage of structures solved by X-Ray and Electron Microscopy. 
+
+> Also can you determine what proportion of structures are protein? Aim to have a rendered GitHub document with working code that yields your answers.
+
+download CSV file from PDB website(“Analyze” -> “PDB Statistics” > “by Experimental Method and Molecular Type”)
+
+```{r}
+# Read CSV
+data <- read.csv("Data Export Summary.csv")
+head(data)
+```
+
+
+```{r}
+# Total number of Entries 
+sum(data$Total)
+
+# Proportions of entries from each method
+(data$Total/sum(data$Total)) * 100
+```
+
+
+Proportion that are protein
+```{r}
+sum(data$Proteins)
+round(sum(data$Proteins)/sum(data$Total) *100, 2)
+```
+
+One method is about 90% (X-Ray microscopy)
+
+Q2: Type HIV in the PDB website search box on the home page and determine how many HIV-1 protease structures are in the current PDB?
+
+
+
+### 1.2: HIV-Pr Structure 
+
+Now download the “PDB File” for the HIV-1 protease structure with the PDB identifier 1HSG. On the website you can “Display” the contents of this “PDB format” file. Alternatively, you can examine the contents of your downloaded file in a suitable text editor.
+
+> NOTE: You can type 1HSG in the PDB search box to jump to its entry and then click “Download Files” to the right of the top display. Selecting “Display Files” will allow you to view the PDB file directly in your browser window.
+
+Will use VMD... DOn't HAVE find a way to get it .... 
+File >> new molecule, file name>> load 
+
+
+## HIV-Pr Structure analysis 
+
+Here we will read the 1HSG PDB structure and select the protein component and write out a new **protein-only** PDB format file. We then do **ligand-only** PDB file
+```{r}
+library(bio3d)
+```
+
+```{r}
+pdb <- read.pdb("1hsg.pdb")
+
+# Select chain A
+a.inds <- atom.select(pdb, chain="A")
+# Select C-alphas of chain A
+ca.inds <- atom.select(pdb, "calpha", chain="A")
+# We can combine multiple selection criteria to return their intersection
+cab.inds <- atom.select(pdb, elety=c("CA","CB"), chain="A", resno=10:20)
+```
+
+### Functions 
+`library(bio3d)`
+`read.pdb`
+`write.pdb`
+`atom.select()`
+`trim.pdb()`
+
+```{r}
+?atom.select
+
+ligand <- atom.select(pdb, "ligand", value=TRUE)
+ligand
+
+write.pdb(ligand, file = "1hsg_ligand.pdb")
+
+
+
+ptn <-atom.select(pdb, "protein", value=TRUE)
+ptn
+
+write.pdb(ptn, file = "1hsg_ptn.pdb")
+```
+with "ligand", we see only 45 atoms, with a non-protein nuclic residue of 1 (MK1)
