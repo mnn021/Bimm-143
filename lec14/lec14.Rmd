@@ -1,0 +1,348 @@
+---
+title: "lec14"
+author: "Michael Nguyen"
+date: "11/12/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## DESeq2 setup
+
+We will use the DESeq2 package from bioconductor. To install this, we ran **in the CONSOLE** - *note: eval=FALSE* option!:
+
+```{r eval=FALSE}
+install.packages("BiocManager")
+BiocManager::install("DESeq2")
+```
+
+
+# Lab 14 
+## 1. Bioconductor and DESeq2 setup
+### DESeq2 Required Inputs
+As input, the DESeq2 package expects (1) a data.frame of count data (as obtained from RNA-seq or another high-throughput sequencing experiment) and (2) a second data.frame with information about the samples - often called sample metadata (or colData in DESeq2-speak because it supplies metadata/information about the columns of the countData matrix).
+
+
+### First Column of of `colData` must MATCH column names of `countData` (-1st)
+The “count matrix” (called the countData in DESeq2-speak) the value in the i-th row and the j-th column of the data.frame tells us how many reads can be assigned to gene i in sample j. Analogously, for other types of assays, the rows of this matrix might correspond e.g. to binding regions (with ChIP-Seq) or peptide sequences (with quantitative mass spectrometry).
+For the sample metadata (i.e. colData in DESeq2-speak) samples are in rows and metadata about those samples are in columns. Notice that the first column of colData must match the column names of countData (except the first, which is the gene ID column).
+
+
+## 2. Import countData and colData
+First, create a new RStudio project in your GitHub tracked directory (File > New Project > New Directory > New Project) and download the input airway_scaledcounts.csv and airway_metadata.csv into a new data sub-directory of your project directory.
+
+Begin a new Rmarkdown document and use the read.csv() function to read these count data and metadata files.
+
+### Inputting dataset
+```{r}
+counts <- read.csv("airway_scaledcounts.csv", stringsAsFactors = FALSE)
+metadata <-  read.csv("airway_metadata.csv", stringsAsFactors = FALSE)
+```
+
+Have a peak...
+```{r}
+head(counts)
+head(metadata)
+```
+
+You can also use the View() function to view the entire object. Notice something here. The sample IDs in the metadata sheet (SRR1039508, SRR1039509, etc.) exactly match the column names of the countdata, except for the first column, which contains the Ensembl gene ID. This is important, and we’ll get more strict about it later on.
+
+
+
+
+
+```{r}
+# Number of genes in `counts` dataset?
+nrow(counts)
+
+# How many experiments do we have?
+ncol(counts)
+nrow(metadata)
+```
+
+Metadata has 8 because it's -1st
+
+
+
+
+## 3. Toy differential gene expression
+Lets perform some exploratory differential gene expression analysis. Note: this analysis is for demonstration only. NEVER do differential expression analysis this way!
+
+Look at the metadata object again to see which samples are control and which are drug treated
+
+```{r}
+View(metadata)
+head(metadata)
+```
+
+If we look at our metadata, we see that the control samples are SRR1039508, SRR1039512, SRR1039516, and SRR1039520. This bit of code will first find the sample id for those labeled control. Then calculate the mean counts per gene across these samples
+
+We all want to know if there is a difference in expression values for control (non-drug) vs. treated (w/ drug cell lines)
+
+First step is to find which experiments were the control (and which were the treated/experimental ones) and then get the average values across all control experiments (or treated). 
+```{r}
+control <- metadata[metadata[,"dex"]=="control",]
+control.mean <- rowSums( counts[ ,control$id] )/4 
+names(control.mean) <- counts$ensgene
+```
+
+```{r}
+control <- metadata[metadata[,"dex"]=="control",]
+control
+# shows which rows are just control
+# can also do `metadata$x` (x = what you're looking for)
+control$id
+# accessing columnes ( [ ,x])
+```
+
+Q1. How would you make the above code more robust? What would happen if you were to add more samples. Would the values obtained with the exact code above be correct?
+- Maybe make a function out of it? If I were able to add more samples then I would have to change denominator (in this case chanigng the 4). Not sure...  
+
+- So now let's calculate the mean values across these control columns of the **countdata**
+```{r}
+control.mean<- rowSums(counts[ ,control$id])/length(control$id)
+names(control.mean) <- counts$ensgene
+# Want a mean of the rows presented below
+```
+
+Q2. Follow the same procedure for the treated samples (i.e. calculate the mean per gene accross drug treated samples and assign to a labeled vector called treated.mean)
+```{r}
+treated <- metadata[metadata[,"dex"]=="treated",]
+treated.mean <- rowSums( counts[ ,treated$id] )/4 
+names(treated.mean) <- counts$ensgene
+```
+
+```{r}
+treated <- metadata[metadata[,"dex"]=="treated",]
+treated
+treated$id
+```
+
+```{r}
+treated.mean <- rowSums( counts[ ,treated$id] )/length(treated$id)
+names(treated.mean) <- counts$ensgene
+```
+
+
+```{r}
+meanx <- function(control, treated) {
+  
+}
+```
+
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+```
+
+Directly comparing the raw counts is going to be problematic if we just happened to sequence one group at a higher depth than another. Later on we’ll do this analysis properly, normalizing by sequencing depth per sample using a better approach. But for now, colSums() the data to show the sum of the mean counts across all genes for each group. Your answer should look like this:
+
+```{r}
+colSums(meancounts)
+```
+
+Q3. Create a scatter plot showing the mean of the treated samples against the mean of the control samples. Your plot should look something like the following.
+
+```{r}
+plot(meancounts$control.mean, meancounts$treated.mean, log = "xy", xlab = "log Control", ylab = "log Treated")
+plot(control.mean, treated.mean, log = "xy", xlab = "log Control", ylab = "log Treated")
+# SAME PLOTS
+```
+
+
+We can find candidate differentially expressed genes by looking for genes with a large change between control and dex-treated samples. We usually look at the log2 of the fold change, because this has better mathematical properties.
+
+Here we calculate **log2foldchange**, add it to our meancounts data.frame and inspect the results either with the head() or the View() function for example.
+
+```{r}
+meancounts$log2fc <- log2(meancounts[,"treated.mean"]/meancounts[,"control.mean"])
+head(meancounts)
+```
+
+```{r}
+# or
+meancounts$log2fc <- log2(meancounts$treated.mean/meancounts$control.mean)
+```
+
+
+There are a couple of “weird” results. Namely, the **NaN** (“not a number”“) and **-Inf** (negative infinity) results.
+
+The NaN is returned when you divide by zero and try to take the log. The -Inf is returned when you try to take the log of zero. It turns out that there are a lot of genes with zero expression. Let’s filter our data to remove these genes. Again inspect your result (and the intermediate steps) to see if things make sense to you
+
+```{r}
+zero.vals <-  which(meancounts[, 1:2]==0, arr.ind =TRUE)
+# == tests for which ones are whatever value
+# arr.ind tells us where these values of interest are at. (in this case, 0)
+to.rm <- unique(zero.vals[,1])
+mycounts <- meancounts[-to.rm,]
+head(mycounts)
+
+# unique() allows us to specifically choose either a column or a row (or both) to anyalize the data. In this case, we're interested in col. 1
+```
+
+Q4. What is the purpose of the arr.ind argument in the which() function call above? Why would we then take the first column of the output and need to call the unique() function?
+- unique returns a vector, data frame or array like x but with duplicate elements/rows removed.
+
+A common threshold used for calling something differentially expressed is a log2(FoldChange) of greater than 2 or less than -2. Let’s filter the dataset both ways to see how many genes are up or down-regulated.
+
+```{r}
+up.ind <- mycounts$log2fc > 2
+down.ind <- mycounts$log2fc < (-2)
+```
+
+Q5. Using the up.ind and down.ind vectors above can you determine how many up and down regulated genes we have at the greater than 2 fc level?
+- yes. 
+
+```{r}
+sum(up.ind)
+# Sum logicals (1 =T, 0 = F)
+sum(down.ind)
+total_counts<- sum(up.ind, down.ind)
+total_counts
+```
+
+
+```{r}
+head(mycounts[up.ind,])
+head(mycounts[down.ind,])
+```
+
+## 4. Adding annotation data
+Our mycounts result table so far only contains the Ensembl gene IDs. However, alternative gene names and extra annotation are usually required for informative for interpretation.
+
+We can add annotation from a supplied CSV file, such as those available from ENSEMBLE or UCSC. The **annotables_grch38.csv** annotation table links the unambiguous Ensembl gene ID to other useful annotation like the gene symbol, full gene name, location, Entrez gene ID, etc.
+
+```{r}
+anno <- read.csv("annotables_grch38.csv")
+head(anno)
+```
+
+
+
+WILL CONTINUE LATER
+
+
+
+question 8...
+
+
+
+FOLD CHANGE
+
+
+
+
+
+## 5. DESeq2 analysis
+Let’s do this the right way. DESeq2 is an R package for analyzing count-based NGS data like RNA-seq. It is available from Bioconductor. Bioconductor is a project to provide tools for analyzing high-throughput genomic data including RNA-seq, ChIP-seq and arrays. You can explore Bioconductor packages here.
+
+Just like R packages from CRAN, you only need to install Bioconductor packages once (instructions here), then load them every time you start a new R session.
+```{r}
+library(DESeq2)
+```
+
+## Importing data
+
+We will use the DESeqDataSetFromMatrix() function to build the required DESeqDataSet object and call it dds, short for our DESeqDataSet. If you get a warning about “some variables in design formula are characters, converting to factors” don’t worry about it. Take a look at the dds object once you create it.
+```{r}
+dds <- DESeqDataSetFromMatrix(countData=counts, 
+                              colData=metadata, 
+                              design=~dex, 
+                              tidy=TRUE)
+dds
+```
+
+Run DESeq2
+```{r}
+dds <- DESeq(dds)
+```
+
+## Get the Results
+```{r}
+res <- results(dds)
+res
+```
+
+### WE GOT OUR FOLDCHANGE *AND* and P-VALUE
+
+Volvano plot >> annotation of genes >> save results for next day
+
+
+## Making a Volcano (Summary) Plot 
+What's plotted: foldchange at x, -log (pvalue) at y
+This figure will combine both Fold Change and the p-value into one overview figure indicating the proportion of genes with large scale sig. differences in their expression.
+
+### Let’s make another commonly produced visualization from this data, namely so-called Volcano plots. These summary figures are frequently used to highlight the proportion of genes that are both significantly regulated and display a high fold change.
+
+First, let’s add a column called sig to our full res results that evaluates to TRUE only if padj<0.05 and the absolute log2FoldChange>2, FALSE if not, and NA if padj is also NA.
+
+
+```{r}
+res$sig <- res$padj<0.05 & abs(res$log2FoldChange)>2
+table(res$sig)
+```
+
+```{r}
+sum(is.na(res$sig))
+```
+
+A volcano plot shows the log fold change on the X-axis, and the −log10
+ of the p-value on the Y-axis (the more significant the p-value, the larger the −log10 of that value will be).
+ 
+Want -log for smaller p-values. 
+
+Here we first make a volcano plot with base graphics and color by our res$sig+1 (we add 1 so we dont have 0 as a color and end up with white points):
+
+KEY version
+```{r}
+# Set the color palette for our plot
+palette( c("gray","blue") )
+
+plot( res$log2FoldChange,  -log(res$padj), 
+ col=res$sig+1, ylab="-Log(P-value)", xlab="Log2(FoldChange)")
+
+# Add some cut-off lines
+abline(v=c(-2,2), col="darkgray", lty=2)
+abline(h=-log(0.1), col="darkgray", lty=2)
+```
+
+```{r}
+# Reset the color palette
+palette("default")   
+```
+
+```{r}
+# Setup our custom point color vector 
+mycols <- rep("gray", nrow(res))
+mycols[ abs(res$log2FoldChange) > 2 ]  <- "red" 
+
+inds <- (res$padj < 0.01) & (abs(res$log2FoldChange) > 2 )
+mycols[ inds ] <- "blue"
+
+#Volcano plot with custom colors 
+plot( res$log2FoldChange,  -log(res$padj), 
+ col=mycols, ylab="-Log(P-value)", xlab="Log2(FoldChange)" )
+
+abline(v=c(-2,2), col="darkgray", lty=2)
+abline(h=-log(0.1), col="darkgray", lty=2)
+```
+
+```{r}
+# Add some color please
+mycols <- rep("gray", nrow(res))
+# Make points with +2 -2 fold change to BLUE
+mycols[abs(res$log2FoldChange) > 2] <- "blue"
+
+# make points below pvalue cuttoff (red)
+mycols[ abs(res$padj) > 0.05]  <- "gray" 
+plot(res$log2FoldChange, -log(res$padj),col=mycols)
+abline(v=c(-2,2), col="black", lty=2)
+abline(h=-log(0.05), col="black", lty=2)
+```
+
+## Saving our results
+```{r}
+write.csv(res, file= "expression_results.csv")
+```
+
