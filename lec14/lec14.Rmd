@@ -73,7 +73,6 @@ Lets perform some exploratory differential gene expression analysis. Note: this 
 Look at the metadata object again to see which samples are control and which are drug treated
 
 ```{r}
-View(metadata)
 head(metadata)
 ```
 
