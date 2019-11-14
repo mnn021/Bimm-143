@@ -1,0 +1,291 @@
+---
+title: "lec15"
+author: "Michael Nguyen"
+date: "11/14/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Lab 15: Pathway Analysis from RNA-Seq Results
+
+## About our Input Data
+The data for for hands-on session comes from GEO entry: GSE37704, which is associated with the following publication:
+
+> Trapnell C, Hendrickson DG, Sauvageau M, Goff L et al. "Differential analysis of gene regulation at transcript resolution with RNA-seq". Nat Biotechnol 2013 Jan;31(1):46-53. PMID: 23222703
+
+The authors report on differential analysis of lung fibroblasts in response to loss of the developmental transcription factor HOXA1. Their results and others indicate that HOXA1 is required for lung fibroblast and HeLa cell cycle progression. In particular their analysis show that "loss of HOXA1 results in significant expression level changes in thousands of individual transcripts, along with isoform switching events in key regulators of the cell cycle". For our session we have used their Sailfish gene-level estimated counts and hence are restricted to protein-coding genes only.
+
+
+```{r}
+library(DESeq2)
+```
+## 1. Differential Expression Analysis
+
+```{r}
+metaFile <- "GSE37704_metadata.csv"
+countFile <- "GSE37704_featurecounts.csv"
+
+# Import metadata and take a peak
+colData = read.csv(metaFile, row.names=1)
+head(colData)
+```
+
+Using a control with siRNA and KD HOXa1 gene 
+
+
+```{r}
+# Import countdata
+countData = read.csv(countFile, row.names=1)
+head(countData)
+```
+
+* don't match because there is a length data...* REMOVE COL
+
+The *length* of the column in countData is going to cause problems with the required matching to the metadata file so let's remove it her.
+```{r}
+# Note we need to remove the odd first $length col
+countData <- as.matrix(countData[,-1])
+head(countData)
+```
+
+Double check that the *colnames* in countData matches the ID values in the colData with *rownames*
+
+```{r}
+colnames(countData)
+rownames(colData)
+```
+
+```{r}
+colnames(countData) == rownames(colData)
+all(colnames(countData) == rownames(colData))
+```
+
+```{r}
+# example of all() to check if all entries in a vector are true
+
+all(c(T, T, T))
+all(c(T, F, T))
+```
+`View(countData)`
+
+### Now get Rid of the Zeros! 
+Q. Complete the code below to filter countData to exclude genes (i.e. rows) where we have 0 read count across all samples (i.e. columns).
+
+Tip: What will rowSums() of countData return and how could you use it in this context?
+```{r}
+countData = countData[rowSums(countData) != 0, ]
+head(countData)
+```
+
+can also use > 0 instead of != 
+
+## Running DESeq2
+```{r}
+dds = DESeqDataSetFromMatrix(countData=countData,
+                             colData=colData,
+                             design=~condition)
+dds = DESeq(dds)
+# What runs the analysis^
+```
+
+```{r}
+dds
+```
+
+Next, get results for the HoxA1 knockdown versus control siRNA (remember that these were labeled as "hoxa1_kd" and "control_sirna" in our original colData metaFile input to DESeq, you can check this above and by running resultsNames(dds) command).
+
+```{r}
+resultsNames(dds)
+```
+
+
+```{r}
+res = results(dds, contrast=c("condition","hoxa1_kd", "control_sirna"))
+res
+```
+
+Q. Call the summary() function on your results to get a sense of how many genes are up or down-regulated at the default 0.1 p-value cutoff.
+
+```{r}
+summary(res)
+```
+
+### Volcano Plot 
+```{r}
+plot(res$log2FoldChange, -log(res$padj))
+```
+
+```{r}
+res$sig <- res$padj<0.05 & abs(res$log2FoldChange)>2
+table(res$sig)
+sum(is.na(res$sig))
+```
+
+```{r}
+mycols <- rep("gray", nrow(res))
+mycols[abs(res$log2FoldChange)>2] <- "red"
+inds <- (res$padj < 0.01) & (abs(res$log2FoldChange) > 2 )
+mycols[ inds ] <- "blue"
+
+plot(res$log2FoldChange,  -log(res$padj), col=mycols, ylab="-Log(P-value)", xlab="Log2(FoldChange)")
+
+abline(v=c(-2,2), col="black", lty=2)
+abline(h=-log(0.005), col="black", lty=2)
+```
+
+
+## Addimg Gene symbols and entrez IDs
+
+`BiocManager::install("AnnotationDbi")`
+`BiocManager::install("org.Hs.eg.db")`
+
+```{r}
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+
+columns(org.Hs.eg.db)
+```
+
+```{r}
+res$symbol = mapIds(org.Hs.eg.db,
+                    keys=row.names(countData), # where are my IDS
+                    keytype="ENSEMBL",         # What Format are my IDS
+                    column="SYMBOL",           #the new format I want
+                    multiVals="first")
+
+res
+```
+
+```{r}
+res$entrez = mapIds(org.Hs.eg.db,
+                    keys= row.names(countData),
+                    keytype="ENSEMBL",
+                    column="ENTREZID",
+                    multiVals="first")
+
+res$name =   mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="GENENAME",
+                    multiVals="first")
+head(res, 10)
+```
+
+Q. Finally for this section let's reorder these results by adjusted p-value and save them to a CSV file in your current project directory.
+
+```{r}
+res = res[order(res$pvalue),]
+write.csv(res, file="deseq_results.csv")
+```
+
+
+## 2. Pathway Analysis
+Install packages
+
+The gageData package has pre-compiled databases mapping genes to KEGG pathways and GO terms for common organisms. **kegg.sets.hs** is a named list of 229 elements. Each element is a character vector of member gene Entrez IDs for a single KEGG pathway. (See also go.sets.hs). The **sigmet.idx.hs** is an index of numbers of signaling and metabolic pathways in kegg.set.gs. In other words, KEGG pathway include other types of pathway definitions, like "Global Map" and "Human Diseases", which may be undesirable in a particular pathway analysis. Therefore, **kegg.sets.hs[sigmet.idx.hs]** gives you the "cleaner" gene sets of signaling and metabolic pathways only.
+
+```{r}
+library(pathview)
+```
+
+```{r}
+library(gage)
+library(gageData)
+```
+
+```{r}
+data(kegg.sets.hs)    # Kegg sets of Human Signaling
+data(sigmet.idx.hs)   # Signaling and Metabolism index
+
+kegg.sets.hs = kegg.sets.hs[sigmet.idx.hs]
+
+head(kegg.sets.hs, 3)
+```
+
+The main gage() function requires a named vector of fold changes, where the names of the values are the Entrez gene IDs.
+
+Note that we used the mapIDs() function above to obtain Entrez gene IDs (stored in res$entrez) and we have the fold change results from DESeq2 analysis (stored in res$log2FoldChange).
+
+
+```{r}
+foldchanges = res$log2FoldChange
+names(foldchanges) <- res$entrez
+head(foldchanges)
+```
+
+Now, let’s run the gage pathway analysis.
+
+```{r}
+# Get the results
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+> ?gage
+
+Now lets look at the object returned from gage().
+
+```{r}
+attributes(keggres)
+str(keggres)
+```
+
+```{r}
+head(keggres$less)
+```
+Each **keggres$less** and **keggres$greater** object is data matrix with gene sets as rows sorted by p-value.
+
+The top "less/down" pathways is "Cell cycle" with the KEGG pathway identifier hsa04110.
+
+### Useing Pathview
+```{r}
+pathview(gene.data=foldchanges, pathway.id="hsa04110")
+```
+
+```{r}
+head(keggres$greater)
+```
+
+```{r}
+# A different PDF based output of the same data
+pathview(gene.data=foldchanges, pathway.id="hsa04110", kegg.native=FALSE)
+```
+
+## Focus on top 5 upregulated pathways here for demo purposes only
+
+```{r}
+keggrespathways <- rownames(keggres$greater)[1:5]
+
+# Extract the 8 character long IDs part of each string
+keggresids = substr(keggrespathways, start=1, stop=8)
+keggresids
+```
+
+```{r}
+pathview(gene.data = foldchanges, pathway.id = keggresids, species = "hsa")
+```
+
+Q. Can you do the same procedure as above to plot the pathview figures for the top 5 down-reguled pathways?
+
+- YES
+
+
+
+## 3. Gene Ontology (GO)
+We can also do a similar procedure with gene ontology. Similar to above, go.sets.hs has all GO terms. go.subs.hs is a named list containing indexes for the BP, CC, and MF ontologies. Let’s focus on BP (a.k.a Biological Process) here.
+
+
+```{r}
+data(go.sets.hs)
+data(go.subs.hs)
+
+# Focus on Biological Process subset of GO
+gobpsets = go.sets.hs[go.subs.hs$BP]
+
+gobpres = gage(foldchanges, gsets=gobpsets, same.dir=TRUE)
+
+lapply(gobpres, head)
+```
+
