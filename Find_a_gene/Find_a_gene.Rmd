@@ -1,0 +1,104 @@
+---
+title: "Find a Gene"
+author: "Michael Nguyen"
+date: "12/3/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("bio3d")
+```
+
+```{r}
+x<- read.fasta("SeqAlign1.1")
+x
+```
+
+```{r}
+ide.mat<- seqidentity(x, normalize = TRUE, similarity = FALSE, ncore =1, nseg.scale = 1)
+ide.mat
+
+heatmap(ide.mat, margin = c(11,3), cexRow =1.0, cexCol = 1.0)
+```
+
+```{r}
+# Plot identity matrix
+plot.dmat(ide.mat, color.palette=mono.colors,
+          main="Range 1 Alignment", xlab="Structure No.",
+          ylab="Structure No.")
+```
+
+
+```{r}
+# Histogram of pairwise identity values
+hist(ide.mat[upper.tri(ide.mat)], breaks=30,xlim=c(0,1),
+     main="Sequence Identity", xlab="Identity")
+```
+
+```{r}
+y <- read.fasta("SeqAlign2")
+y
+```
+
+
+```{r}
+ide.mat2<- seqidentity(y, normalize = TRUE, similarity = FALSE, ncore =1, nseg.scale = 1)
+ide.mat2
+
+heatmap(ide.mat2, margin = c(11,3), cexRow =1.0, cexCol = 1.0)
+```
+
+
+
+
+```{r}
+plot.dmat(ide.mat2, color.palette=mono.colors,
+          main="Range 2 Alignment", xlab="Structure No.",
+          ylab="Structure No.")
+```
+
+
+```{r}
+z <- read.fasta("SeqAlign3")
+z
+```
+
+
+
+```{r}
+ide.mat3<- seqidentity(z, normalize = TRUE, similarity = FALSE, ncore =1, nseg.scale = 1)
+ide.mat3
+
+heatmap(ide.mat3, margin = c(11,3), cexRow =1.0, cexCol = 1.0)
+```
+
+
+
+
+```{r}
+plot.dmat(ide.mat3, color.palette=mono.colors,
+          main="Range 3 Alignment", xlab="Structure No.",
+          ylab="Structure No.")
+```
+
+```{r}
+library("bio3d")
+```
+
+```{r}
+con <- consensus(x, cutoff = 0.4)
+con
+```
+
+
+
+```{r}
+con2 <- consensus(y, cutoff = 0.2)
+con2
+```
+
+
