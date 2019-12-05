@@ -1,0 +1,14 @@
+---
+title: "BIMM 143 FINAL"
+author: "Michael Nguyen"
+date: "12/5/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
