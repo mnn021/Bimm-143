@@ -12,3 +12,20 @@ knitr::opts_chunk$set(echo = TRUE)
 ## R Markdown
 
 
+r
+```{r}
+library(bio3d)
+library(BiocManager)
+```
+
+```{r}
+seqs <- read.fasta("unk-sequences.fa")
+seqs
+```
+
+```{r}
+ide <- conserv(seqs$ali, method = "identity")
+mutant.sites <- which(ide < 1)   # 1 being conserved!!
+mutant.sites
+```
+
